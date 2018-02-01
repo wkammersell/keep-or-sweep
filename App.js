@@ -3,10 +3,10 @@ Ext.define('CustomApp', {
 	getSettingsFields: function() {
 		return [
 			{
-				name: 'toDate',
-				xtype: 'rallydatefield',
-				fieldLabel: 'Ignore artifacts created on or after:',
-				value: new Date()
+				name: 'ignoreWindow',
+				xtype: 'rallynumberfield',
+				fieldLabel: 'Ignore artifacts created within the last X days:',
+				value: 0
 			}
 		];
 	},
@@ -65,11 +65,13 @@ Ext.define('CustomApp', {
 	loadItems:function( model ) {
 		var filters = [];
 		
-		if( myApp.getSetting( 'toDate' ) ) {
+		if( myApp.getSetting( 'ignoreWindow' ) ) {
+			var creationEndDate = new Date();
+			creationEndDate.setDate( creationEndDate.getDate() - myApp.getSetting( 'ignoreWindow' ) );
 			var toDateFilter = Ext.create('Rally.data.wsapi.Filter', {
 				property : 'CreationDate',
 				operator: '<',
-				value: new Date( myApp.getSetting( 'toDate' ) )
+				value: creationEndDate
 			});
 			filters.push( toDateFilter );
 		}
@@ -109,7 +111,6 @@ Ext.define('CustomApp', {
 					if( model == 'Defect' ) {
 						myApp.loadItems( 'UserStory' );
 					} else {
-						console.log( myApp.itemBacklog );
 						myApp._myMask.hide();
 						myApp.presentItem( 0 );
 					}
@@ -252,7 +253,6 @@ Ext.define('CustomApp', {
 			Artifact: item._ref
 		} );
 		
-		console.log( post );
 		post.save( {
 			callback: function( result, operation ){
 				if ( operation.wasSuccessful() ) {
