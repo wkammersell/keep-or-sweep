@@ -44,7 +44,7 @@ Ext.define('CustomApp', {
 		myApp.add( {
 			xtype: 'rallybutton',
 			itemId: 'beginButton',
-			text: 'Begin',
+			text: 'Start Voting!',
 			handler: function(){ myApp.beginButtonHandler(); },
 			style: {
 				'background-color': myApp.THEME_COLOR_1,
@@ -64,11 +64,12 @@ Ext.define('CustomApp', {
 	
 	loadItems:function( model ) {
 		var filters = [];
+		
 		if( myApp.getSetting( 'toDate' ) ) {
 			var toDateFilter = Ext.create('Rally.data.wsapi.Filter', {
 				property : 'CreationDate',
 				operator: '<',
-				value: myApp.getSetting( 'toDate' )
+				value: new Date( myApp.getSetting( 'toDate' ) )
 			});
 			filters.push( toDateFilter );
 		}
