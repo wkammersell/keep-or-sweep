@@ -11,10 +11,11 @@ Ext.define('CustomApp', {
 			}
 		];
 	},
-	THEME_COLOR_1: '#4E1E1E',
-	THEME_COLOR_2: '#58E481',
-	THEME_COLOR_3: '#E63870',
-	THEME_COLOR_4: '#FBE6A2',
+	DARK_BROWN: '#4E1E1E',
+	GREEN: '#58E481',
+	RED: '#E63870',
+	YELLOW: '#ffed78',
+	FONT_SIZE: '15px',
 	itemBacklog: [],
 	conversationPostModel: null,
 	
@@ -41,7 +42,7 @@ Ext.define('CustomApp', {
 				align: 'stretch'
 			},
 			bodyStyle: {
-				'background-color': myApp.THEME_COLOR_1
+				'background-color': myApp.DARK_BROWN
 			}
 		});
 		
@@ -49,7 +50,7 @@ Ext.define('CustomApp', {
 			xtype: 'label',
 			html: 'It\'s time to review our backlog and vote to keep or sweep. You\'ll be presented with each item under consideration and asked whether we should keep it on the backlog or sweep it into the recycle bin. Your choices are tracked as comments on the artifact for later action.<br/>',
 			style: {
-				'font-size': '15px',
+				'font-size': myApp.FONT_SIZE,
 				'color': '#FFFFFF'
 			},
 			padding: 10
@@ -121,128 +122,48 @@ Ext.define('CustomApp', {
 	
 	presentItem:function( itemIndex ) {
 		if( itemIndex <= myApp.itemBacklog.length - 1 ) {
+		
 			var item = myApp.itemBacklog[ itemIndex ];
-			myApp.add( {
-				xtype: 'label',
-				html: 'Item ' + ( itemIndex + 1 ) + ' of ' + myApp.itemBacklog.length + '</br></br>',
-				style: {
-					'font-size': '15px'
-				}
-			} );
-		
-			myApp.add( {
-				xtype: 'rallybutton',
-				itemId: 'keepButton',
-				text: 'Keep',
-				handler: function(){ myApp.processItem( itemIndex, true ); },
-				style: {
-					'background-color': myApp.THEME_COLOR_2,
-					'border-color': myApp.THEME_COLOR_2
-				}
-			} );
-		
-			myApp.add( {
-				xtype: 'rallybutton',
-				itemId: 'sweepButton',
-				text: 'Sweep',
-				handler: function(){ myApp.processItem( itemIndex, false ); },
-				style: {
-					'background-color': myApp.THEME_COLOR_3,
-					'border-color': myApp.THEME_COLOR_3
-				}
-			} );
-		
-			myApp.add( {
-				xtype: 'rallybutton',
-				itemId: 'skipButton',
-				text: 'Skip',
-				handler: function(){
-					myApp.clearContent();
-					myApp.presentItem( itemIndex + 1 );
+			myApp.addLabel( myApp, 'Item ' + ( itemIndex + 1 ) + ' of ' + myApp.itemBacklog.length );
+			
+			var buttonBox = myApp.add( {
+				xype: 'container',
+				border: 0,
+				layout: {
+					type: 'hbox',
+					align: 'stretch'
 				},
-				style: {
-					'background-color': myApp.THEME_COLOR_4,
-					'border-color': myApp.THEME_COLOR_4,
-					'font-color': myApp.THEME_COLOR_3
-				}
+				padding: '10 0 10 0'
+			});
+			
+			myApp.addButton( buttonBox, 'Keep', myApp.GREEN, function(){ myApp.processItem( itemIndex, true ); } );
+			myApp.addButton( buttonBox, 'Sweep', myApp.RED, function(){ myApp.processItem( itemIndex, false ); } );
+			myApp.addButton( buttonBox, 'Skip', myApp.YELLOW, function(){
+				myApp.clearContent();
+				myApp.presentItem( itemIndex + 1 );
 			} );
-		
-			myApp.add( {
-				xtype: 'label',
-				html: '<br/><br/><u><b>ID</b></u><br/>',
-				style: {
-					'font-size': '15px',
-					'color': myApp.THEME_COLOR_1
+			
+			var descriptionBox = myApp.add( {
+				xype: 'container',
+				border: 0,
+				layout: {
+					type: 'vbox',
+					align: 'stretch'
 				}
-			} );
-		
-			myApp.add( {
-				xtype: 'label',
-				html: item.FormattedID,
-				style: {
-					'font-size': '15px'
-				}
-			} );
-		
-			myApp.add( {
-				xtype: 'label',
-				html: '<br/><br/><u><b>Name</b></u><br/>',
-				style: {
-					'font-size': '15px',
-					'color': myApp.THEME_COLOR_1
-				}
-			} );
-		
-			myApp.add( {
-				xtype: 'label',
-				html: item.Name,
-				style: {
-					'font-size': '15px'
-				}
-			} );
-		
-			myApp.add( {
-				xtype: 'label',
-				html: '<br/><br/><u><b>Creation Date</b></u><br/>',
-				style: {
-					'font-size': '15px',
-					'color': myApp.THEME_COLOR_1
-				}
-			} );
-		
-			myApp.add( {
-				xtype: 'label',
-				html: item.CreationDate.toLocaleString( 'en-US' ),
-				style: {
-					'font-size': '15px'
-				}
-			} );
-		
-			myApp.add( {
-				xtype: 'label',
-				html: '<br/><br/><u><b>Description</b></u><br/>',
-				style: {
-					'font-size': '15px',
-					'color': myApp.THEME_COLOR_1
-				}
-			} );
-		
-			myApp.add( {
-				xtype: 'label',
-				html: item.Description,
-				style: {
-					'font-size': '15px'
-				}
-			} );
+			});
+			
+			myApp.addHeader( descriptionBox, 'ID');
+			myApp.addLabel( descriptionBox, item.FormattedID );
+			myApp.addHeader( descriptionBox, 'Name' );
+			myApp.addLabel( descriptionBox, item.Name );
+			myApp.addHeader( descriptionBox, 'Creation Date' );
+			myApp.addLabel( descriptionBox, item.CreationDate.toLocaleString( 'en-US' ) );
+			myApp.addHeader( descriptionBox, 'Description' );
+			myApp.addLabel( descriptionBox, item.Description );
+			
 		} else {
-			myApp.add( {
-				xtype: 'label',
-				html: 'It\'s Over! Thanks for your votes.',
-				style: {
-					'font-size': '15px',
-					'color': myApp.THEME_COLOR_1
-				}
-			} );
+			// TODO: Add something more fun here. Maybe a pie chart?
+			myApp.addLabel( myApp, 'It\'s Over! Thanks for your votes.' );
 		}
 	},
 	
@@ -264,6 +185,44 @@ Ext.define('CustomApp', {
 				}
 			}
 		});
+	},
+	
+	addLabel:function( parent, text ) {
+		parent.add( {
+			xtype: 'label',
+			html: text,
+			style: {
+				'font-size': myApp.FONT_SIZE
+			}
+		} );
+	},
+	
+	addHeader:function( parent, text ) {
+		parent.add( {
+			xtype: 'label',
+			html: '<u><b>' + text + '</b></u>',
+			style: {
+				'font-size': myApp.FONT_SIZE,
+				'color': myApp.DARK_BROWN
+			},
+			padding: '5 0 1 0'
+		} );
+	},
+	
+	addButton:function( parent, text, color, handler ) {
+		var button = parent.add( {
+			xtype: 'rallybutton',
+			text: text,
+			handler: handler,
+			style: {
+				'background-color': color,
+				'border-color': color
+			}
+		} );
+		button.getEl().down( '.x-btn-inner' ).setStyle( {
+			'color':myApp.DARK_BROWN,
+			'font-size': myApp.FONT_SIZE
+		} );
 	},
 	
 	clearContent:function() {
