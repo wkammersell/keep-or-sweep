@@ -1,3 +1,5 @@
+var myApp;
+
 Ext.define('CustomApp', {
 	extend: 'Rally.app.App',
 	getSettingsFields: function() {
@@ -5,12 +7,10 @@ Ext.define('CustomApp', {
 			{
 				name: 'ignoreWindow',
 				xtype: 'rallynumberfield',
-				fieldLabel: 'Ignore artifacts created within the last X days:',
-				value: 0
+				fieldLabel: 'Ignore artifacts created within the last X days:'
 			}
 		];
 	},
-	myApp: null,
 	THEME_COLOR_1: '#4E1E1E',
 	THEME_COLOR_2: '#58E481',
 	THEME_COLOR_3: '#E63870',
@@ -33,28 +33,28 @@ Ext.define('CustomApp', {
 		myApp.conversationPostModel = model;
 		myApp.clearContent();
 		
-		myApp.add( {
-			xtype: 'label',
-			html: 'It\'s time to review your backlog and vote to keep ... or sweep. You\'ll be presented with each item under consideration and asked whether we should keep it on the backlog or sweep it into the recycle bin. Your choices are tracked as comments on the artifact for later action.<br/>',
-			style: {
-				'font-size': '15px'
+		var header = myApp.add( {
+			xype: 'container',
+			border: 0,
+			layout: {
+				type: 'vbox',
+				align: 'stretch'
+			},
+			bodyStyle: {
+				'background-color': myApp.THEME_COLOR_1
 			}
+		});
+		
+		header.add( {
+			xtype: 'label',
+			html: 'It\'s time to review our backlog and vote to keep or sweep. You\'ll be presented with each item under consideration and asked whether we should keep it on the backlog or sweep it into the recycle bin. Your choices are tracked as comments on the artifact for later action.<br/>',
+			style: {
+				'font-size': '15px',
+				'color': '#FFFFFF'
+			},
+			padding: 10
 		} );
 		
-		myApp.add( {
-			xtype: 'rallybutton',
-			itemId: 'beginButton',
-			text: 'Start Voting!',
-			handler: function(){ myApp.beginButtonHandler(); },
-			style: {
-				'background-color': myApp.THEME_COLOR_1,
-				'border-color': myApp.THEME_COLOR_1
-			}
-		} );
-	},
-	
-	// Use the from date, to date, and scope to determine the time range for the chart
-	beginButtonHandler:function() {
 		// Show loading message
 		myApp._myMask = new Ext.LoadMask(Ext.getBody(), {msg:"Loading... Please wait."});
 		myApp._myMask.show();
@@ -108,7 +108,7 @@ Ext.define('CustomApp', {
 			callback: function( records, operation ) {
 				if( operation.wasSuccessful() ) {
 					myApp.itemBacklog = _.union( myApp.itemBacklog, _.pluck( records, 'data' ) );
-					if( model == 'Defect' ) {
+					if( model === 'Defect' ) {
 						myApp.loadItems( 'UserStory' );
 					} else {
 						myApp._myMask.hide();
@@ -120,8 +120,7 @@ Ext.define('CustomApp', {
 	},
 	
 	presentItem:function( itemIndex ) {
-		myApp.clearContent();
-		if( itemIndex < myApp.itemBacklog.length - 1 ) {
+		if( itemIndex <= myApp.itemBacklog.length - 1 ) {
 			var item = myApp.itemBacklog[ itemIndex ];
 			myApp.add( {
 				xtype: 'label',
@@ -157,7 +156,10 @@ Ext.define('CustomApp', {
 				xtype: 'rallybutton',
 				itemId: 'skipButton',
 				text: 'Skip',
-				handler: function(){ myApp.presentItem( itemIndex + 1 ); },
+				handler: function(){
+					myApp.clearContent();
+					myApp.presentItem( itemIndex + 1 );
+				},
 				style: {
 					'background-color': myApp.THEME_COLOR_4,
 					'border-color': myApp.THEME_COLOR_4,
@@ -235,7 +237,7 @@ Ext.define('CustomApp', {
 		} else {
 			myApp.add( {
 				xtype: 'label',
-				html: 'It\'s Over!',
+				html: 'It\'s Over! Thanks for your votes.',
 				style: {
 					'font-size': '15px',
 					'color': myApp.THEME_COLOR_1
@@ -257,6 +259,7 @@ Ext.define('CustomApp', {
 			callback: function( result, operation ){
 				if ( operation.wasSuccessful() ) {
 					myApp._myMask.hide();
+					myApp.clearContent();
 					myApp.presentItem( itemIndex + 1 );
 				}
 			}
@@ -270,11 +273,8 @@ Ext.define('CustomApp', {
 		while( myApp.down( 'button' ) ) {
 			myApp.down( 'button' ).destroy();
 		}
-		while( myApp.down( 'rallygrid' ) ) {
-			myApp.down( 'rallygrid' ).destroy();
-		}
-		while( myApp.down( 'textareafield' ) ) {
-			myApp.down( 'textareafield' ).destroy();
+		while( myApp.down( 'container' ) ) {
+			myApp.down( 'container' ).destroy();
 		}
 	}
 });
