@@ -8,6 +8,11 @@ Ext.define('CustomApp', {
 				name: 'ignoreWindow',
 				xtype: 'rallynumberfield',
 				fieldLabel: 'Ignore artifacts created within the last X days:'
+			},
+			{
+				name: 'revoteWindow',
+				xtype: 'rallynumberfield',
+				fieldLabel: 'Ignore votes within the last X days:'
 			}
 		];
 	},
@@ -16,7 +21,9 @@ Ext.define('CustomApp', {
 	RED: '#E63870',
 	YELLOW: '#ffed78',
 	FONT_SIZE: '15px',
+	POWERED_BY_MESSAGE: 'Powered by the Keep-or-Sweep app',
 	itemBacklog: [],
+	voteNeeds: [],
 	conversationPostModel: null,
 	
 	launch: function() {
@@ -95,6 +102,12 @@ Ext.define('CustomApp', {
 					'CreationDate',
 					'Description'
 				],
+				sorters: [
+					{
+						property: 'CreationDate',
+						direction: 'ASC'
+					}
+				],
 				context: myApp.getContext().getDataContext(),
 				pageSize: 2000,
 				limit: 2000
@@ -108,23 +121,62 @@ Ext.define('CustomApp', {
 			scope: myApp,
 			callback: function( records, operation ) {
 				if( operation.wasSuccessful() ) {
-					myApp.itemBacklog = _.union( myApp.itemBacklog, _.pluck( records, 'data' ) );
+					myApp.itemBacklog = records;
+					
 					if( model === 'Defect' ) {
 						myApp.loadItems( 'UserStory' );
 					} else {
-						myApp._myMask.hide();
-						myApp.presentItem( 0 );
+						myApp.loadConversationPosts( 0 );
 					}
 				}
 			}
 		});
 	},
 	
-	presentItem:function( itemIndex ) {
+	// Load the Conversations for each item to get the votes
+	loadConversationPosts:function( itemIndex ) {
 		if( itemIndex <= myApp.itemBacklog.length - 1 ) {
+			var workItem = myApp.itemBacklog[ itemIndex ];
+			workItem.getCollection( 'Discussion' ).load( {
+				fetch: [ 'User', 'Text', 'CreationDate' ],
+				callback: function( conversationPostRecords, operation ) {
+					if( operation.wasSuccessful() ) {
+						workItem.ConversationPosts = conversationPostRecords;
+					}
+					myApp.loadConversationPosts( itemIndex + 1 );
+				}
+			} );
+		}  else {
+			myApp.identifyVoteNeeds();
+		}
+	},
+	
+	identifyVoteNeeds:function() {
+		var myUserRefObjectUUID = myApp.getContext().getUser()._refObjectUUID;
+		var cutOffDate = new Date();
+		if ( myApp.getSetting( 'revoteWindow' ) ) {
+			cutOffDate.setDate( cutOffDate.getDate() - myApp.getSetting( 'revoteWindow' ) );
+		}
 		
-			var item = myApp.itemBacklog[ itemIndex ];
-			myApp.addLabel( myApp, 'Item ' + ( itemIndex + 1 ) + ' of ' + myApp.itemBacklog.length );
+		_.each( myApp.itemBacklog, function( item ) {
+			item.needsVote = _.find( item.ConversationPosts, function( post ) {
+				var isMyComment = post.data.User._refObjectUUID == myUserRefObjectUUID;
+				var isRecentComment = post.data.CreationDate <= cutOffDate;
+				var isKeepOrSweepComment = post.data.Text.includes( myApp.POWERED_BY_MESSAGE );
+				return isMyComment && isRecentComment && isKeepOrSweepComment;
+			} ) === undefined ? true : false;
+		}, myApp );
+		
+		myApp.voteNeeds = _.where( myApp.itemBacklog, { needsVote: true } );
+		myApp._myMask.hide();
+		myApp.presentItemVote( 0 );
+	},
+	
+	presentItemVote:function( itemIndex ) {
+		if( itemIndex <= myApp.voteNeeds.length - 1 ) {
+		
+			var item = myApp.voteNeeds[ itemIndex ].data;
+			myApp.addLabel( myApp, 'Item ' + ( itemIndex + 1 ) + ' of ' + myApp.voteNeeds.length );
 			
 			var buttonBox = myApp.add( {
 				xype: 'container',
@@ -136,11 +188,11 @@ Ext.define('CustomApp', {
 				padding: '10 0 10 0'
 			});
 			
-			myApp.addButton( buttonBox, 'Keep', myApp.GREEN, function(){ myApp.processItem( itemIndex, true ); } );
-			myApp.addButton( buttonBox, 'Sweep', myApp.RED, function(){ myApp.processItem( itemIndex, false ); } );
+			myApp.addButton( buttonBox, 'Keep', myApp.GREEN, function(){ myApp.voteItem( itemIndex, true ); } );
+			myApp.addButton( buttonBox, 'Sweep', myApp.RED, function(){ myApp.voteItem( itemIndex, false ); } );
 			myApp.addButton( buttonBox, 'Skip', myApp.YELLOW, function(){
 				myApp.clearContent();
-				myApp.presentItem( itemIndex + 1 );
+				myApp.presentItemVote( itemIndex + 1 );
 			} );
 			
 			var descriptionBox = myApp.add( {
@@ -167,12 +219,12 @@ Ext.define('CustomApp', {
 		}
 	},
 	
-	processItem:function( itemIndex, keep ) {
-		var item = myApp.itemBacklog[ itemIndex ];
+	voteItem:function( itemIndex, keep ) {
+		var item = myApp.voteNeeds[ itemIndex ];
 		myApp._myMask.show();
 		
 		var post = Ext.create( myApp.conversationPostModel, {
-			Text: ( keep ? 'Keep it!' : 'Sweep it!' ) + '<br/>Powered by the Keep-or-Sweep app',
+			Text: ( keep ? 'Keep it!' : 'Sweep it!' ) + '<br/>' + myApp.POWERED_BY_MESSAGE,
 			Artifact: item._ref
 		} );
 		
@@ -181,7 +233,7 @@ Ext.define('CustomApp', {
 				if ( operation.wasSuccessful() ) {
 					myApp._myMask.hide();
 					myApp.clearContent();
-					myApp.presentItem( itemIndex + 1 );
+					myApp.presentItemVote( itemIndex + 1 );
 				}
 			}
 		});
