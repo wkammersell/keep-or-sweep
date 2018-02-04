@@ -54,19 +54,57 @@ Ext.define('CustomApp', {
 			},
 			bodyStyle: {
 				'background-color': myApp.DARK_BROWN
-			}
+			},
 		});
 		
-		header.add( {
+		var voteInstructions = header.add( {
+			xype: 'container',
+			border: 0,
+			layout: {
+				type: 'vbox',
+				align: 'stretch'
+			},
+			bodyStyle: {
+				'background-color': myApp.DARK_BROWN
+			},
+			padding: '10 10 0 10'
+		});
+		
+		var processInstructions = header.add( {
+			xype: 'container',
+			border: 0,
+			layout: {
+				type: 'hbox',
+				align: 'stretch'
+			},
+			bodyStyle: {
+				'background-color': myApp.DARK_BROWN
+			},
+			padding: '5 10 10 10'
+		});
+		
+		voteInstructions.add( {
 			xtype: 'label',
-			html: 'It\'s time to review our backlog and vote to keep or sweep. You\'ll be presented with each item under consideration and asked whether we should keep it on the backlog or sweep it into the recycle bin. Your choices are tracked as comments on the artifact for later action.<br/>',
+			html: 'It\'s time to review our backlog and vote to keep or sweep old items. You\'ll be presented with each item under consideration and asked whether we should keep it on the backlog or sweep it into the recycle bin. Your choices are tracked as comments on the artifact for later action.',
 			style: {
 				'font-size': myApp.FONT_SIZE,
 				'color': '#FFFFFF'
-			},
-			padding: 10
+			}
 		} );
 		
+		processInstructions.add( {
+			xtype: 'label',
+			html: 'When we have all cast our votes, we will review the results to quickly clean our backlog:  ',
+			style: {
+				'font-size': myApp.FONT_SIZE,
+				'color': '#FFFFFF'
+			}
+		} );
+		
+		myApp.addButton( processInstructions, 'Process Team Votes', myApp.YELLOW, function(){
+			myApp.clearContent();
+			myApp.presentItemForProcess( 0 );
+		} );
 		myApp.loadItems( 'Defect' );
 	},
 	
@@ -190,7 +228,7 @@ Ext.define('CustomApp', {
 			myApp.addLabel( myApp, 'It\'s Over! Thanks for your votes.' );
 		}
 	},
-			
+	
 	presentItemForVote:function( itemIndex ) {
 		myApp._myMask.hide();
 		var item = myApp.itemBacklog[ itemIndex ];
@@ -212,7 +250,10 @@ Ext.define('CustomApp', {
 			myApp.clearContent();
 			myApp.checkItemVote( itemIndex + 1 );
 		} );
-		
+		myApp.displayItemDetails( item );
+	},
+	
+	displayItemDetails:function( item ) {
 		var descriptionBox = myApp.add( {
 			xype: 'container',
 			border: 0,
@@ -245,6 +286,51 @@ Ext.define('CustomApp', {
 				if ( operation.wasSuccessful() ) {
 					myApp.clearContent();
 					myApp.checkItemVote( itemIndex + 1 );
+				} else {
+					myApp._myMask.hide();
+					myApp.clearContent();
+					myApp.addLabel( myApp, "Error adding vote conversation post:" );
+					myApp.addLabel( myApp, operation.error.errors[0] );
+				}
+			}
+		});
+	},
+	
+	presentItemForProcess:function( itemIndex ) {
+		myApp._myMask.hide();
+		myApp.clearContent();
+		if( itemIndex <= myApp.itemBacklog.length - 1 ) {
+			var item = myApp.itemBacklog[ itemIndex ];
+			myApp.addLabel( myApp, ( myApp.itemBacklog.length - itemIndex - 1 ) + ' Items Remaining');
+		
+			var buttonBox = myApp.add( {
+				xype: 'container',
+				border: 0,
+				layout: {
+					type: 'hbox',
+					align: 'stretch'
+				},
+				padding: '10 0 10 0'
+			});
+		
+			myApp.addButton( buttonBox, myApp.KEEP_MESSAGE, myApp.GREEN, function(){ myApp.presentItemForProcess( itemIndex + 1 ); } );
+			myApp.addButton( buttonBox, myApp.SWEEP_MESSAGE, myApp.RED, function(){ myApp.deleteItem( itemIndex ); } );
+			myApp.displayItemDetails( item );
+		} else {
+			myApp._myMask.hide();
+			myApp.addLabel( myApp, 'It\'s Over! Your backlog never looked so clean!' );
+		}
+	},
+	
+	deleteItem:function( itemIndex ) {
+		var item = myApp.itemBacklog[ itemIndex ];
+		myApp._myMask.show();
+		
+		item.destroy( {
+			callback: function( result, operation ){
+				if ( operation.wasSuccessful() ) {
+					myApp.clearContent();
+					myApp.presentItemForProcess( itemIndex + 1 );
 				} else {
 					myApp._myMask.hide();
 					myApp.clearContent();
