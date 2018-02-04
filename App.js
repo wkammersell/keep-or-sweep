@@ -160,7 +160,7 @@ Ext.define('CustomApp', {
 			scope: myApp,
 			callback: function( records, operation ) {
 				if( operation.wasSuccessful() ) {
-					myApp.itemBacklog = records;
+					myApp.itemBacklog.push.apply( myApp.itemBacklog, records );
 					
 					if( model === 'Defect' ) {
 						myApp.loadItems( 'UserStory' );
