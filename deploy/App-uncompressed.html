@@ -237,12 +237,11 @@ Ext.define('CustomApp', {
 			myApp.addLabel( myApp, 'It\'s Over! Thanks for your votes.' );
 		}
 	},
-			
+	
 	presentItemForVote:function( itemIndex ) {
 		myApp._myMask.hide();
-		myApp.clearContent();
 		var item = myApp.itemBacklog[ itemIndex ];
-		myApp.addLabel( myApp, ( myApp.itemBacklog.length - itemIndex - 1 ) + ' Items Remaining');
+		myApp.addLabel( myApp, 'Approximately ' + ( myApp.itemBacklog.length - itemIndex - 1 ) + ' Items Remaining');
 		
 		var buttonBox = myApp.add( {
 			xype: 'container',
@@ -254,8 +253,12 @@ Ext.define('CustomApp', {
 			padding: '10 0 10 0'
 		});
 		
-		myApp.addButton( buttonBox, myApp.KEEP_MESSAGE, myApp.GREEN, function(){ myApp.presentItemForVote( itemIndex + 1 ); } );
-		myApp.addButton( buttonBox, myApp.SWEEP_MESSAGE, myApp.RED, function(){ myApp.deleteItem( itemIndex ); } );
+		myApp.addButton( buttonBox, myApp.KEEP_MESSAGE, myApp.GREEN, function(){ myApp.voteItem( itemIndex, true ); } );
+		myApp.addButton( buttonBox, myApp.SWEEP_MESSAGE, myApp.RED, function(){ myApp.voteItem( itemIndex, false ); } );
+		myApp.addButton( buttonBox, 'Skip', myApp.YELLOW, function(){
+			myApp.clearContent();
+			myApp.checkItemVote( itemIndex + 1 );
+		} );
 		myApp.displayItemDetails( item );
 	},
 	
@@ -302,28 +305,49 @@ Ext.define('CustomApp', {
 		});
 	},
 	
-	presentItemForVote:function( itemIndex ) {
+	presentItemForProcess:function( itemIndex ) {
 		myApp._myMask.hide();
+		myApp.clearContent();
+		if( itemIndex <= myApp.itemBacklog.length - 1 ) {
+			var item = myApp.itemBacklog[ itemIndex ];
+			myApp.addLabel( myApp, ( myApp.itemBacklog.length - itemIndex - 1 ) + ' Items Remaining');
+		
+			var buttonBox = myApp.add( {
+				xype: 'container',
+				border: 0,
+				layout: {
+					type: 'hbox',
+					align: 'stretch'
+				},
+				padding: '10 0 10 0'
+			});
+		
+			myApp.addButton( buttonBox, myApp.KEEP_MESSAGE, myApp.GREEN, function(){ myApp.presentItemForProcess( itemIndex + 1 ); } );
+			myApp.addButton( buttonBox, myApp.SWEEP_MESSAGE, myApp.RED, function(){ myApp.deleteItem( itemIndex ); } );
+			myApp.displayItemDetails( item );
+		} else {
+			myApp._myMask.hide();
+			myApp.addLabel( myApp, 'It\'s Over! Your backlog never looked so clean!' );
+		}
+	},
+	
+	deleteItem:function( itemIndex ) {
 		var item = myApp.itemBacklog[ itemIndex ];
-		myApp.addLabel( myApp, 'Approximately ' + ( myApp.itemBacklog.length - itemIndex - 1 ) + ' Items Remaining');
+		myApp._myMask.show();
 		
-		var buttonBox = myApp.add( {
-			xype: 'container',
-			border: 0,
-			layout: {
-				type: 'hbox',
-				align: 'stretch'
-			},
-			padding: '10 0 10 0'
+		item.destroy( {
+			callback: function( result, operation ){
+				if ( operation.wasSuccessful() ) {
+					myApp.clearContent();
+					myApp.presentItemForProcess( itemIndex + 1 );
+				} else {
+					myApp._myMask.hide();
+					myApp.clearContent();
+					myApp.addLabel( myApp, "Error adding vote conversation post:" );
+					myApp.addLabel( myApp, operation.error.errors[0] );
+				}
+			}
 		});
-		
-		myApp.addButton( buttonBox, myApp.KEEP_MESSAGE, myApp.GREEN, function(){ myApp.voteItem( itemIndex, true ); } );
-		myApp.addButton( buttonBox, myApp.SWEEP_MESSAGE, myApp.RED, function(){ myApp.voteItem( itemIndex, false ); } );
-		myApp.addButton( buttonBox, 'Skip', myApp.YELLOW, function(){
-			myApp.clearContent();
-			myApp.checkItemVote( itemIndex + 1 );
-		} );
-		myApp.displayItemDetails( item );
 	},
 	
 	addLabel:function( parent, text ) {
