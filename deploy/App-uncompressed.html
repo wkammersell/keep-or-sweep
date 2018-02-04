@@ -288,14 +288,25 @@ Ext.define('CustomApp', {
 	},
 	
 	displayItemDetails:function( item ) {
-		var descriptionBox = myApp.add( {
+		var viewDetailsBox = myApp.add( {
 			xype: 'container',
 			border: 0,
 			layout: {
 				type: 'vbox'
 			}
 		});
-		myApp.addButton( descriptionBox, 'View Full Details', myApp.DARK_BROWN, function(){ Rally.nav.Manager.showDetail( item.raw._ref ); } );
+		
+		myApp.addButton( viewDetailsBox, 'View Full Details', myApp.DARK_BROWN, function(){ Rally.nav.Manager.showDetail( item.raw._ref ); } );
+		
+		var descriptionBox = myApp.add( {
+			xype: 'container',
+			border: 0,
+			layout: {
+				type: 'vbox',
+				align: 'stretch'
+			}
+		});
+		
 		myApp.addHeader( descriptionBox, 'ID');
 		myApp.addLabel( descriptionBox, item.data.FormattedID );
 		myApp.addHeader( descriptionBox, 'Name' );
