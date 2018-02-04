@@ -21,7 +21,7 @@ Ext.define('CustomApp', {
 			{
 				name: 'revoteWindow',
 				xtype: 'rallynumberfield',
-				fieldLabel: 'Ignore votes within the last X days:'
+				fieldLabel: 'Only count votes within the last X days:'
 			}
 		];
 	},
@@ -206,8 +206,9 @@ Ext.define('CustomApp', {
 					if( operation.wasSuccessful() ) {
 						var voteData = [];
 						
-						var cutOffDate = new Date();
+						var cutOffDate = null;
 						if ( myApp.getSetting( 'revoteWindow' ) ) {
+							cutOffDate = new Date();
 							cutOffDate.setDate( cutOffDate.getDate() - myApp.getSetting( 'revoteWindow' ) );
 						}
 						
@@ -215,7 +216,7 @@ Ext.define('CustomApp', {
 						var myUserName = myApp.getContext().getUser()._refObjectName;
 						_.each( records, function( record ) {
 							var voteUserName = record.data.User._refObjectName;
-							if( record.data.Text.includes( myApp.POWERED_BY_MESSAGE ) && ( record.data.CreationDate <= cutOffDate ) ) {
+							if( record.data.Text.includes( myApp.POWERED_BY_MESSAGE ) && ( cutOffDate ? ( record.data.CreationDate >= cutOffDate ) : true ) ) {
 								var votePoint = [
 									voteUserName,
 									record.data.Text.includes( myApp.KEEP_MESSAGE ) ? myApp.KEEP_MESSAGE : myApp.SWEEP_MESSAGE,
