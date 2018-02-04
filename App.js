@@ -20,6 +20,7 @@ Ext.define('CustomApp', {
 	GREEN: '#58E481',
 	RED: '#E63870',
 	YELLOW: '#ffed78',
+	WHITE: '#FFFFFF',
 	FONT_SIZE: '15px',
 	POWERED_BY_MESSAGE: 'Powered by the Keep-or-Sweep app',
 	KEEP_MESSAGE: 'Keep It!',
@@ -192,7 +193,7 @@ Ext.define('CustomApp', {
 			
 	presentItemForVote:function( itemIndex ) {
 		myApp._myMask.hide();
-		var item = myApp.itemBacklog[ itemIndex ].data;
+		var item = myApp.itemBacklog[ itemIndex ];
 		myApp.addLabel( myApp, 'Approximately ' + ( myApp.itemBacklog.length - itemIndex - 1 ) + ' Items Remaining');
 		
 		var buttonBox = myApp.add( {
@@ -216,19 +217,18 @@ Ext.define('CustomApp', {
 			xype: 'container',
 			border: 0,
 			layout: {
-				type: 'vbox',
-				align: 'stretch'
+				type: 'vbox'
 			}
 		});
-		
+		myApp.addButton( descriptionBox, 'View Full Details', myApp.DARK_BROWN, function(){ Rally.nav.Manager.showDetail( item.raw._ref ); } );
 		myApp.addHeader( descriptionBox, 'ID');
-		myApp.addLabel( descriptionBox, item.FormattedID );
+		myApp.addLabel( descriptionBox, item.data.FormattedID );
 		myApp.addHeader( descriptionBox, 'Name' );
-		myApp.addLabel( descriptionBox, item.Name );
+		myApp.addLabel( descriptionBox, item.data.Name );
 		myApp.addHeader( descriptionBox, 'Creation Date' );
-		myApp.addLabel( descriptionBox, item.CreationDate.toLocaleString( 'en-US' ) );
+		myApp.addLabel( descriptionBox, item.data.CreationDate.toLocaleString( 'en-US' ) );
 		myApp.addHeader( descriptionBox, 'Description' );
-		myApp.addLabel( descriptionBox, item.Description );
+		myApp.addLabel( descriptionBox, item.data.Description );
 	},
 	
 	voteItem:function( itemIndex, keep ) {
@@ -288,7 +288,7 @@ Ext.define('CustomApp', {
 			}
 		} );
 		button.getEl().down( '.x-btn-inner' ).setStyle( {
-			'color':myApp.DARK_BROWN,
+			'color': ( color === myApp.DARK_BROWN ) ? myApp.WHITE : myApp.DARK_BROWN,
 			'font-size': myApp.FONT_SIZE
 		} );
 	},
