@@ -103,7 +103,7 @@ Ext.define('CustomApp', {
 		
 		myApp.addButton( processInstructions, 'Process Team Votes', myApp.YELLOW, function(){
 			myApp.clearContent();
-			myApp.presentItemForProcess( 0 );
+			myApp.checkItemVotes( 0, false );
 		} );
 		myApp.loadItems( 'Defect' );
 	},
@@ -165,7 +165,7 @@ Ext.define('CustomApp', {
 					if( model === 'Defect' ) {
 						myApp.loadItems( 'UserStory' );
 					} else {
-						myApp.checkItemVote( 0 );
+						myApp.checkItemVotes( 0, true );
 					}
 				} else {
 					myApp._myMask.hide();
@@ -177,7 +177,7 @@ Ext.define('CustomApp', {
 		});
 	},
 	
-	checkItemVote:function( itemIndex ) {
+	checkItemVotes:function( itemIndex, voteMode ) {
 		if( itemIndex <= myApp.itemBacklog.length - 1 ) {
 			myApp._myMask.show();
 			var workItem = myApp.itemBacklog[ itemIndex ];
@@ -190,29 +190,49 @@ Ext.define('CustomApp', {
 				sorters: [
 					{
 						property: 'CreationDate',
-						direction: 'ASC'
+						direction: 'DESC'
 					}
 				],
 				callback: function( records, operation ) {
 					if( operation.wasSuccessful() ) {
-						var voteLookup = {};
+						var voteData = [];
 						
 						var cutOffDate = new Date();
 						if ( myApp.getSetting( 'revoteWindow' ) ) {
 							cutOffDate.setDate( cutOffDate.getDate() - myApp.getSetting( 'revoteWindow' ) );
 						}
 						
+						var foundMyVote = false;
+						var myUserName = myApp.getContext().getUser()._refObjectName;
 						_.each( records, function( record ) {
+							var voteUserName = record.data.User._refObjectName;
 							if( record.data.Text.includes( myApp.POWERED_BY_MESSAGE ) && ( record.data.CreationDate <= cutOffDate ) ) {
-								voteLookup[ record.data.User._refObjectUUID ] = record.data.Text.includes( myApp.KEEP_MESSAGE );
+								var votePoint = [
+									voteUserName,
+									record.data.Text.includes( myApp.KEEP_MESSAGE ) ? myApp.KEEP_MESSAGE : myApp.SWEEP_MESSAGE,
+									record.data.CreationDate
+								];
+								
+								if( myUserName == voteUserName ) {
+									foundMyVote = true;
+								}
+								
+								// Only add the vote if there isn't a vote already for this user
+								if( !_.contains( _.map( voteData, function( vote ) { return vote[ 0 ] } ), voteUserName ) ) {
+									voteData.push( votePoint );
+								}
 							}
 						}, myApp );
-						workItem.votes = voteLookup;
+						workItem.votes = voteData;
 						
-						if( _.isUndefined( voteLookup[ myApp.getContext().getUser()._refObjectUUID ] ) ) {
-							myApp.presentItemForVote( itemIndex );
+						if( voteMode ) {
+							if( !foundMyVote ) {
+								myApp.presentItemForVote( itemIndex );
+							} else {
+								myApp.checkItemVotes( itemIndex + 1, true );
+							}
 						} else {
-							myApp.checkItemVote( itemIndex + 1 );
+							myApp.presentItemForProcess( itemIndex );
 						}
 					} else {
 						myApp._myMask.hide();
@@ -225,7 +245,11 @@ Ext.define('CustomApp', {
 		} else {
 			// TODO: Add something more fun here. Maybe a pie chart?
 			myApp._myMask.hide();
-			myApp.addLabel( myApp, 'It\'s Over! Thanks for your votes.' );
+			if ( voteMode ) {
+				myApp.addLabel( myApp, 'It\'s Over! Thanks for your votes.' );
+			} else {
+				myApp.addLabel( myApp, 'It\'s Over! Your backlog never looked so clean!' );
+			}
 		}
 	},
 	
@@ -248,7 +272,7 @@ Ext.define('CustomApp', {
 		myApp.addButton( buttonBox, myApp.SWEEP_MESSAGE, myApp.RED, function(){ myApp.voteItem( itemIndex, false ); } );
 		myApp.addButton( buttonBox, 'Skip', myApp.YELLOW, function(){
 			myApp.clearContent();
-			myApp.checkItemVote( itemIndex + 1 );
+			myApp.checkItemVotes( itemIndex + 1, true );
 		} );
 		myApp.displayItemDetails( item );
 	},
@@ -285,11 +309,11 @@ Ext.define('CustomApp', {
 			callback: function( result, operation ){
 				if ( operation.wasSuccessful() ) {
 					myApp.clearContent();
-					myApp.checkItemVote( itemIndex + 1 );
+					myApp.checkItemVotes( itemIndex + 1, true );
 				} else {
 					myApp._myMask.hide();
 					myApp.clearContent();
-					myApp.addLabel( myApp, "Error adding vote conversation post:" );
+					myApp.addLabel( myApp, "Error adding vote conversation post to " + item.data.FormattedID + ":" );
 					myApp.addLabel( myApp, operation.error.errors[0] );
 				}
 			}
@@ -299,27 +323,59 @@ Ext.define('CustomApp', {
 	presentItemForProcess:function( itemIndex ) {
 		myApp._myMask.hide();
 		myApp.clearContent();
-		if( itemIndex <= myApp.itemBacklog.length - 1 ) {
-			var item = myApp.itemBacklog[ itemIndex ];
-			myApp.addLabel( myApp, ( myApp.itemBacklog.length - itemIndex - 1 ) + ' Items Remaining');
+		var item = myApp.itemBacklog[ itemIndex ];
+		myApp.addLabel( myApp, ( myApp.itemBacklog.length - itemIndex - 1 ) + ' Items Remaining');
+	
+		var buttonBox = myApp.add( {
+			xype: 'container',
+			border: 0,
+			layout: {
+				type: 'hbox',
+				align: 'stretch'
+			},
+			padding: '10 0 10 0'
+		});
+	
+		myApp.addButton( buttonBox, myApp.KEEP_MESSAGE, myApp.GREEN, function(){ myApp.checkItemVotes( itemIndex + 1, false ); } );
+		myApp.addButton( buttonBox, myApp.SWEEP_MESSAGE, myApp.RED, function(){ myApp.deleteItem( itemIndex ); } );
 		
-			var buttonBox = myApp.add( {
-				xype: 'container',
-				border: 0,
-				layout: {
-					type: 'hbox',
-					align: 'stretch'
+		//Display vote results
+		var votesStore = Ext.create( 'Ext.data.ArrayStore', {
+			storeId:'votesStore',
+			fields:[
+				{name: 'user', type: 'string' },
+				{name: 'vote', type: 'string' },
+				{name: 'creationDate', type: 'date' }
+			],
+			data: item.votes
+		});
+
+		myApp.add( {
+			xtype: 'rallygrid',
+			showPagingToolbar: false,
+			showRowActionsColumn: false,
+			editable: false,
+			store: votesStore,
+			columnCfgs: [
+				{
+					text: 'User',
+					dataIndex: 'user',
+					flex: true
 				},
-				padding: '10 0 10 0'
-			});
+				{
+					text: 'Vote',
+					dataIndex: 'vote',
+					flex: true
+				},
+				{
+					text: 'Date',
+					dataIndex: 'creationDate',
+					flex: true
+				}
+			]
+		} );
 		
-			myApp.addButton( buttonBox, myApp.KEEP_MESSAGE, myApp.GREEN, function(){ myApp.presentItemForProcess( itemIndex + 1 ); } );
-			myApp.addButton( buttonBox, myApp.SWEEP_MESSAGE, myApp.RED, function(){ myApp.deleteItem( itemIndex ); } );
-			myApp.displayItemDetails( item );
-		} else {
-			myApp._myMask.hide();
-			myApp.addLabel( myApp, 'It\'s Over! Your backlog never looked so clean!' );
-		}
+		myApp.displayItemDetails( item );
 	},
 	
 	deleteItem:function( itemIndex ) {
@@ -330,11 +386,11 @@ Ext.define('CustomApp', {
 			callback: function( result, operation ){
 				if ( operation.wasSuccessful() ) {
 					myApp.clearContent();
-					myApp.presentItemForProcess( itemIndex + 1 );
+					myApp.checkItemVotes( itemIndex + 1, false );
 				} else {
 					myApp._myMask.hide();
 					myApp.clearContent();
-					myApp.addLabel( myApp, "Error adding vote conversation post:" );
+					myApp.addLabel( myApp, "Error deleting " + item.data.FormattedID + ":" );
 					myApp.addLabel( myApp, operation.error.errors[0] );
 				}
 			}
