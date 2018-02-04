@@ -482,7 +482,7 @@ Ext.define('CustomApp', {
 			}
 		} );
 		button.getEl().down( '.x-btn-inner' ).setStyle( {
-			'color': ( color === myApp.DARK_BROWN ) ? myApp.WHITE : myApp.DARK_BROWN,
+			'color': ( ( color === myApp.DARK_BROWN ) || ( color === myApp.RED ) ) ? myApp.WHITE : myApp.DARK_BROWN,
 			'font-size': myApp.FONT_SIZE
 		} );
 	},
