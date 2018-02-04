@@ -31,13 +31,16 @@ Ext.define('CustomApp', {
 	YELLOW: '#ffed78',
 	FONT_SIZE: '15px',
 	POWERED_BY_MESSAGE: 'Powered by the Keep-or-Sweep app',
+	KEEP_MESSAGE: 'Keep It!',
+	SWEEP_MESSAGE: 'Sweep It!',
 	itemBacklog: [],
-	voteNeeds: [],
 	conversationPostModel: null,
 	
 	launch: function() {
 		myApp = this;
 		
+		myApp._myMask = new Ext.LoadMask(Ext.getBody(), {msg:"Loading... Please wait."});
+		myApp._myMask.show();
 		// Fetch the conversation post model for later
 		Rally.data.ModelFactory.getModel( {
 			type: 'ConversationPost',
@@ -72,14 +75,11 @@ Ext.define('CustomApp', {
 			padding: 10
 		} );
 		
-		// Show loading message
-		myApp._myMask = new Ext.LoadMask(Ext.getBody(), {msg:"Loading... Please wait."});
-		myApp._myMask.show();
-		
 		myApp.loadItems( 'Defect' );
 	},
 	
 	loadItems:function( model ) {
+		myApp._myMask.show();
 		var filters = [];
 		
 		if( myApp.getSetting( 'ignoreWindow' ) ) {
@@ -135,114 +135,130 @@ Ext.define('CustomApp', {
 					if( model === 'Defect' ) {
 						myApp.loadItems( 'UserStory' );
 					} else {
-						myApp.loadConversationPosts( 0 );
+						myApp.checkItemVote( 0 );
 					}
+				} else {
+					myApp._myMask.hide();
+					myApp.clearContent();
+					myApp.addLabel( myApp, "Error loading work items of type " + model + ":" );
+					myApp.addLabel( myApp, operation.error.errors[0] );
 				}
 			}
 		});
 	},
 	
-	// Load the Conversations for each item to get the votes
-	loadConversationPosts:function( itemIndex ) {
+	checkItemVote:function( itemIndex ) {
 		if( itemIndex <= myApp.itemBacklog.length - 1 ) {
+			myApp._myMask.show();
 			var workItem = myApp.itemBacklog[ itemIndex ];
 			workItem.getCollection( 'Discussion' ).load( {
-				fetch: [ 'User', 'Text', 'CreationDate' ],
-				callback: function( conversationPostRecords, operation ) {
-					if( operation.wasSuccessful() ) {
-						workItem.ConversationPosts = conversationPostRecords;
+				fetch: [ 
+					'User',
+					'Text',
+					'CreationDate'
+				],
+				sorters: [
+					{
+						property: 'CreationDate',
+						direction: 'ASC'
 					}
-					myApp.loadConversationPosts( itemIndex + 1 );
+				],
+				callback: function( records, operation ) {
+					if( operation.wasSuccessful() ) {
+						var voteLookup = {};
+						
+						var cutOffDate = new Date();
+						if ( myApp.getSetting( 'revoteWindow' ) ) {
+							cutOffDate.setDate( cutOffDate.getDate() - myApp.getSetting( 'revoteWindow' ) );
+						}
+						
+						_.each( records, function( record ) {
+							if( record.data.Text.includes( myApp.POWERED_BY_MESSAGE ) && ( record.data.CreationDate <= cutOffDate ) ) {
+								voteLookup[ record.data.User._refObjectUUID ] = record.data.Text.includes( myApp.KEEP_MESSAGE );
+							}
+						}, myApp );
+						workItem.votes = voteLookup;
+						
+						if( _.isUndefined( voteLookup[ myApp.getContext().getUser()._refObjectUUID ] ) ) {
+							myApp.presentItemForVote( itemIndex );
+						} else {
+							myApp.checkItemVote( itemIndex + 1 );
+						}
+					} else {
+						myApp._myMask.hide();
+						myApp.clearContent();
+						myApp.addLabel( myApp, "Error getting conversation posts for " + workItem.data.FormattedID + ":" );
+						myApp.addLabel( myApp, operation.error.errors[0] );
+					}
 				}
 			} );
-		}  else {
-			myApp.identifyVoteNeeds();
-		}
-	},
-	
-	identifyVoteNeeds:function() {
-		var myUserRefObjectUUID = myApp.getContext().getUser()._refObjectUUID;
-		var cutOffDate = new Date();
-		if ( myApp.getSetting( 'revoteWindow' ) ) {
-			cutOffDate.setDate( cutOffDate.getDate() - myApp.getSetting( 'revoteWindow' ) );
-		}
-		
-		_.each( myApp.itemBacklog, function( item ) {
-			item.needsVote = _.find( item.ConversationPosts, function( post ) {
-				var isMyComment = post.data.User._refObjectUUID == myUserRefObjectUUID;
-				var isRecentComment = post.data.CreationDate <= cutOffDate;
-				var isKeepOrSweepComment = post.data.Text.includes( myApp.POWERED_BY_MESSAGE );
-				return isMyComment && isRecentComment && isKeepOrSweepComment;
-			} ) === undefined ? true : false;
-		}, myApp );
-		
-		myApp.voteNeeds = _.where( myApp.itemBacklog, { needsVote: true } );
-		myApp._myMask.hide();
-		myApp.presentItemVote( 0 );
-	},
-	
-	presentItemVote:function( itemIndex ) {
-		if( itemIndex <= myApp.voteNeeds.length - 1 ) {
-		
-			var item = myApp.voteNeeds[ itemIndex ].data;
-			myApp.addLabel( myApp, 'Item ' + ( itemIndex + 1 ) + ' of ' + myApp.voteNeeds.length );
-			
-			var buttonBox = myApp.add( {
-				xype: 'container',
-				border: 0,
-				layout: {
-					type: 'hbox',
-					align: 'stretch'
-				},
-				padding: '10 0 10 0'
-			});
-			
-			myApp.addButton( buttonBox, 'Keep', myApp.GREEN, function(){ myApp.voteItem( itemIndex, true ); } );
-			myApp.addButton( buttonBox, 'Sweep', myApp.RED, function(){ myApp.voteItem( itemIndex, false ); } );
-			myApp.addButton( buttonBox, 'Skip', myApp.YELLOW, function(){
-				myApp.clearContent();
-				myApp.presentItemVote( itemIndex + 1 );
-			} );
-			
-			var descriptionBox = myApp.add( {
-				xype: 'container',
-				border: 0,
-				layout: {
-					type: 'vbox',
-					align: 'stretch'
-				}
-			});
-			
-			myApp.addHeader( descriptionBox, 'ID');
-			myApp.addLabel( descriptionBox, item.FormattedID );
-			myApp.addHeader( descriptionBox, 'Name' );
-			myApp.addLabel( descriptionBox, item.Name );
-			myApp.addHeader( descriptionBox, 'Creation Date' );
-			myApp.addLabel( descriptionBox, item.CreationDate.toLocaleString( 'en-US' ) );
-			myApp.addHeader( descriptionBox, 'Description' );
-			myApp.addLabel( descriptionBox, item.Description );
-			
 		} else {
 			// TODO: Add something more fun here. Maybe a pie chart?
+			myApp._myMask.hide();
 			myApp.addLabel( myApp, 'It\'s Over! Thanks for your votes.' );
 		}
 	},
+			
+	presentItemForVote:function( itemIndex ) {
+		myApp._myMask.hide();
+		var item = myApp.itemBacklog[ itemIndex ].data;
+		myApp.addLabel( myApp, 'Approximately ' + ( myApp.itemBacklog.length - itemIndex - 1 ) + ' Items Remaining');
+		
+		var buttonBox = myApp.add( {
+			xype: 'container',
+			border: 0,
+			layout: {
+				type: 'hbox',
+				align: 'stretch'
+			},
+			padding: '10 0 10 0'
+		});
+		
+		myApp.addButton( buttonBox, myApp.KEEP_MESSAGE, myApp.GREEN, function(){ myApp.voteItem( itemIndex, true ); } );
+		myApp.addButton( buttonBox, myApp.SWEEP_MESSAGE, myApp.RED, function(){ myApp.voteItem( itemIndex, false ); } );
+		myApp.addButton( buttonBox, 'Skip', myApp.YELLOW, function(){
+			myApp.clearContent();
+			myApp.checkItemVote( itemIndex + 1 );
+		} );
+		
+		var descriptionBox = myApp.add( {
+			xype: 'container',
+			border: 0,
+			layout: {
+				type: 'vbox',
+				align: 'stretch'
+			}
+		});
+		
+		myApp.addHeader( descriptionBox, 'ID');
+		myApp.addLabel( descriptionBox, item.FormattedID );
+		myApp.addHeader( descriptionBox, 'Name' );
+		myApp.addLabel( descriptionBox, item.Name );
+		myApp.addHeader( descriptionBox, 'Creation Date' );
+		myApp.addLabel( descriptionBox, item.CreationDate.toLocaleString( 'en-US' ) );
+		myApp.addHeader( descriptionBox, 'Description' );
+		myApp.addLabel( descriptionBox, item.Description );
+	},
 	
 	voteItem:function( itemIndex, keep ) {
-		var item = myApp.voteNeeds[ itemIndex ];
+		var item = myApp.itemBacklog[ itemIndex ];
 		myApp._myMask.show();
 		
 		var post = Ext.create( myApp.conversationPostModel, {
-			Text: ( keep ? 'Keep it!' : 'Sweep it!' ) + '<br/>' + myApp.POWERED_BY_MESSAGE,
-			Artifact: item._ref
+			Text: ( keep ? myApp.KEEP_MESSAGE : myApp.SWEEP_MESSAGE ) + '<br/>' + myApp.POWERED_BY_MESSAGE,
+			Artifact: item.data._ref
 		} );
 		
 		post.save( {
 			callback: function( result, operation ){
 				if ( operation.wasSuccessful() ) {
+					myApp.clearContent();
+					myApp.checkItemVote( itemIndex + 1 );
+				} else {
 					myApp._myMask.hide();
 					myApp.clearContent();
-					myApp.presentItemVote( itemIndex + 1 );
+					myApp.addLabel( myApp, "Error adding vote conversation post:" );
+					myApp.addLabel( myApp, operation.error.errors[0] );
 				}
 			}
 		});
