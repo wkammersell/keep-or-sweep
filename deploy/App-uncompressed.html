@@ -32,8 +32,8 @@ Ext.define('CustomApp', {
 	WHITE: '#FFFFFF',
 	FONT_SIZE: '15px',
 	POWERED_BY_MESSAGE: 'Powered by the Keep-or-Sweep app',
-	KEEP_MESSAGE: 'Keep It!',
-	SWEEP_MESSAGE: 'Sweep It!',
+	KEEP_MESSAGE: 'Keep it!',
+	SWEEP_MESSAGE: 'Sweep it!',
 	itemBacklog: [],
 	conversationPostModel: null,
 	
@@ -199,27 +199,43 @@ Ext.define('CustomApp', {
 				sorters: [
 					{
 						property: 'CreationDate',
-						direction: 'ASC'
+						direction: 'DESC'
 					}
 				],
 				callback: function( records, operation ) {
 					if( operation.wasSuccessful() ) {
-						var voteLookup = {};
+						var voteData = [];
 						
 						var cutOffDate = new Date();
 						if ( myApp.getSetting( 'revoteWindow' ) ) {
 							cutOffDate.setDate( cutOffDate.getDate() - myApp.getSetting( 'revoteWindow' ) );
 						}
 						
+						var foundMyVote = false;
+						var myUserName = myApp.getContext().getUser()._refObjectName;
 						_.each( records, function( record ) {
+							var voteUserName = record.data.User._refObjectName;
 							if( record.data.Text.includes( myApp.POWERED_BY_MESSAGE ) && ( record.data.CreationDate <= cutOffDate ) ) {
-								voteLookup[ record.data.User._refObjectUUID ] = record.data.Text.includes( myApp.KEEP_MESSAGE );
+								var votePoint = [
+									voteUserName,
+									record.data.Text.includes( myApp.KEEP_MESSAGE ) ? myApp.KEEP_MESSAGE : myApp.SWEEP_MESSAGE,
+									new Date( record.data.CreationDate )
+								];
+								
+								if( myUserName === voteUserName ) {
+									foundMyVote = true;
+								}
+								
+								// Only add the vote if there isn't a vote already for this user
+								if( !_.contains( _.map( voteData, function( vote ) { return vote[ 0 ]; } ), voteUserName ) ) {
+									voteData.push( votePoint );
+								}
 							}
 						}, myApp );
-						workItem.votes = voteLookup;
+						workItem.votes = voteData;
 						
 						if( voteMode ) {
-							if( _.isUndefined( voteLookup[ myApp.getContext().getUser()._refObjectUUID ] ) ) {
+							if( !foundMyVote ) {
 								myApp.presentItemForVote( itemIndex );
 							} else {
 								myApp.checkItemVotes( itemIndex + 1, true );
@@ -332,26 +348,28 @@ Ext.define('CustomApp', {
 		myApp.addButton( buttonBox, myApp.KEEP_MESSAGE, myApp.GREEN, function(){ myApp.checkItemVotes( itemIndex + 1, false ); } );
 		myApp.addButton( buttonBox, myApp.SWEEP_MESSAGE, myApp.RED, function(){ myApp.deleteItem( itemIndex ); } );
 		
-		console.log( item );
-		var votesData = [];
-		_.each( _.keys( item.votes ), function( key ) {
-			var point = {};
-			point.user = key;
-			point.vote = item.votes[ key ];
-			votesData.push( point );
-		}, myApp );
+		var summaryBox = myApp.add( {
+			xype: 'container',
+			border: 0,
+			layout: {
+				type: 'hbox',
+				align: 'stretch'
+			},
+			padding: '0 0 10 0'
+		});
 		
 		//Display vote results
 		var votesStore = Ext.create( 'Ext.data.ArrayStore', {
 			storeId:'votesStore',
 			fields:[
 				{name: 'user', type: 'string' },
-				{name: 'vote', type: 'string' }
+				{name: 'vote', type: 'string' },
+				{name: 'creationDate', type: 'date' }
 			],
-			data: votesData
+			data: item.votes
 		});
 
-		myApp.add( {
+		summaryBox.add( {
 			xtype: 'rallygrid',
 			showPagingToolbar: false,
 			showRowActionsColumn: false,
@@ -364,12 +382,58 @@ Ext.define('CustomApp', {
 					flex: true
 				},
 				{
-					text: 'Keep?',
+					text: 'Vote',
 					dataIndex: 'vote',
 					flex: true
+				},
+				{
+					text: 'Date',
+					dataIndex: 'creationDate',
+					flex: true
 				}
-			]
+			],
+			flex: 1
 		} );
+		
+		var pieSeries = [];
+		pieSeries.push( {} );
+		pieSeries[0].name = 'Votes';
+		pieSeries[0].colorByPoint = true;
+								
+		pieSeries[0].data = [];
+		var voteCount = _.countBy( item.votes, function( vote ) { return vote[ 1 ]; } );
+		pieSeries[0].data.push( { name: myApp.KEEP_MESSAGE, y: ( voteCount[ myApp.KEEP_MESSAGE ] === undefined ? 0 : ( voteCount[ myApp.KEEP_MESSAGE ] / item.votes.length ) ) } );
+		pieSeries[0].data.push( { name: myApp.SWEEP_MESSAGE, y: ( voteCount[ myApp.SWEEP_MESSAGE ] === undefined ? 0 : ( voteCount[ myApp.SWEEP_MESSAGE ] / item.votes.length ) ) } );
+		
+		var chart = summaryBox.add({
+				xtype: 'rallychart',
+				chartConfig: {
+					chart:{
+						type: 'pie'
+					},
+					title:{
+						text: 'Votes'
+					},
+					plotOptions: {
+						pie: {
+							allowPointSelect: true,
+							cursor: 'pointer',
+							dataLabels: {
+								enabled: true,
+								format: '<b>{point.name}</b>: {point.percentage:.1f} %'
+							}
+						}
+					}
+				},
+				chartData: {
+					series: pieSeries
+				},
+				height: 250,
+				width: 250
+		});
+		
+		// Workaround bug in setting colors - http://stackoverflow.com/questions/18361920/setting-colors-for-rally-chart-with-2-0rc1/18362186
+		chart.setChartColors( [ myApp.GREEN, myApp.RED ] );
 		
 		myApp.displayItemDetails( item );
 	},
