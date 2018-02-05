@@ -11,7 +11,7 @@ It's a good practice to keep your backlog under 100 items as the human brain has
 
 Rather than having one person, like the Product Owner, assess every item on the backlog, this app gets the whole team collaborating on what's good to keep or ready to sweep to the Recycle Bin. Harness the collective wisdom of your team to make the best decisions. First, create a shared custom page with this app and have each team member use it to review the baklog at their leisure over a couple days to a week. They'll be presented with each item on the backlog one at a time with brief details of the work item:
 
-![VoteScreen](assets/vote_screen.png)
+<img src="assets/vote_screen.png" title="Vote Screen" border="3">
 
 When they click the "Keep it!" or "Sweep it!" buttons, their vote will be recorded on the work item's discussion for later access:
 
