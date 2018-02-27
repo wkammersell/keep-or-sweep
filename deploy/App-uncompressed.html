@@ -212,34 +212,35 @@ Ext.define('CustomApp', {
 							cutOffDate.setDate( cutOffDate.getDate() - myApp.getSetting( 'revoteWindow' ) );
 						}
 						
-						var foundMyVote = false;
+						workItem.myVote = null;
 						var myUserName = myApp.getContext().getUser()._refObjectName;
 						_.each( records, function( record ) {
 							var voteUserName = record.data.User._refObjectName;
-							if( record.data.Text.includes( myApp.POWERED_BY_MESSAGE ) && ( cutOffDate ? ( record.data.CreationDate >= cutOffDate ) : true ) ) {
-								var votePoint = [
-									voteUserName,
-									record.data.Text.includes( myApp.KEEP_MESSAGE ) ? myApp.KEEP_MESSAGE : myApp.SWEEP_MESSAGE,
-									new Date( record.data.CreationDate )
-								];
-								
-								if( myUserName === voteUserName ) {
-									foundMyVote = true;
-								}
-								
-								// Only add the vote if there isn't a vote already for this user
-								if( !_.contains( _.map( voteData, function( vote ) { return vote[ 0 ]; } ), voteUserName ) ) {
-									voteData.push( votePoint );
-								}
+							var votePoint = [
+								voteUserName,
+								record.data.Text.includes( myApp.KEEP_MESSAGE ) ? myApp.KEEP_MESSAGE : myApp.SWEEP_MESSAGE,
+								new Date( record.data.CreationDate )
+							];
+							
+							if( myUserName === voteUserName && workItem.myVote === null ) {
+								workItem.myVote = votePoint;
+							}
+							
+							// Only add the vote if there isn't a vote already for this user
+							if( ( record.data.Text.includes( myApp.POWERED_BY_MESSAGE ) ) &&
+							    ( cutOffDate ? ( record.data.CreationDate >= cutOffDate ) : true ) &&
+							    ( !_.contains( _.map( voteData, function( vote ) { return vote[ 0 ]; } ), voteUserName ) )
+							  ) {
+								voteData.push( votePoint );
 							}
 						}, myApp );
 						workItem.votes = voteData;
 						
 						if( voteMode ) {
-							if( !foundMyVote ) {
-								myApp.presentItemForVote( itemIndex );
-							} else {
+							if( workItem.myVote && ( cutOffDate ? ( workItem.myVote[2] >= cutOffDate ) : true ) ) {
 								myApp.checkItemVotes( itemIndex + 1, true );
+							} else {
+								myApp.presentItemForVote( itemIndex );	
 							}
 						} else {
 							myApp.presentItemForProcess( itemIndex );
@@ -257,6 +258,22 @@ Ext.define('CustomApp', {
 			myApp._myMask.hide();
 			if ( voteMode ) {
 				myApp.addLabel( myApp, 'It\'s Over! Thanks for your votes.' );
+				if( itemIndex > 0 ) {
+					var buttonBox = myApp.add( {
+						xype: 'container',
+						border: 0,
+						layout: {
+							type: 'hbox',
+							align: 'stretch'
+						},
+						padding: '10 0 10 0'
+					});
+				
+					myApp.addButton( buttonBox, 'Back', myApp.DARK_BROWN, function(){
+						myApp.clearContent();
+						myApp.presentItemForVote( itemIndex - 1 );
+					} );
+				}
 			} else {
 				myApp.addLabel( myApp, 'It\'s Over! Your backlog never looked so clean!' );
 			}
@@ -278,6 +295,14 @@ Ext.define('CustomApp', {
 			padding: '10 0 10 0'
 		});
 		
+		// Show a Back button if there is a previous work item
+		if( itemIndex > 0 ) {
+			myApp.addButton( buttonBox, 'Back', myApp.DARK_BROWN, function(){
+				myApp.clearContent();
+				myApp.presentItemForVote( itemIndex - 1 );
+			} );
+		}
+		
 		myApp.addButton( buttonBox, myApp.KEEP_MESSAGE, myApp.GREEN, function(){ myApp.voteItem( itemIndex, true ); } );
 		myApp.addButton( buttonBox, myApp.SWEEP_MESSAGE, myApp.RED, function(){ myApp.voteItem( itemIndex, false ); } );
 		myApp.addButton( buttonBox, 'Skip', myApp.YELLOW, function(){
@@ -295,6 +320,17 @@ Ext.define('CustomApp', {
 				type: 'vbox'
 			}
 		});
+		
+		if( item.myVote ) {
+			var voteColor;
+			if( item.myVote[1] === myApp.KEEP_MESSAGE ) {
+				voteColor =  myApp.GREEN;
+			} else {
+				voteColor = myApp.RED;
+			}
+		
+			myApp.addLabel( viewDetailsBox, 'You voted to <b><font color="' + voteColor +'">' + item.myVote[1] + '</font></b> on <b>' + item.myVote[2].toLocaleString( 'en-US' ) + '</b>' );
+		}
 		
 		myApp.addButton( viewDetailsBox, 'View Full Details', myApp.DARK_BROWN, function(){ Rally.nav.Manager.showDetail( item.raw._ref ); } );
 		
@@ -319,16 +355,19 @@ Ext.define('CustomApp', {
 	
 	voteItem:function( itemIndex, keep ) {
 		var item = myApp.itemBacklog[ itemIndex ];
+		var voteText = keep ? myApp.KEEP_MESSAGE : myApp.SWEEP_MESSAGE;
 		myApp._myMask.show();
 		
 		var post = Ext.create( myApp.conversationPostModel, {
-			Text: ( keep ? myApp.KEEP_MESSAGE : myApp.SWEEP_MESSAGE ) + '<br/>' + myApp.POWERED_BY_MESSAGE,
+			Text: voteText + '<br/>' + myApp.POWERED_BY_MESSAGE,
 			Artifact: item.data._ref
 		} );
 		
 		post.save( {
 			callback: function( result, operation ){
 				if ( operation.wasSuccessful() ) {
+					// We don't need to worry about setting the user id as it doesn't matter for displaying
+					item.myVote = [ null, voteText, new Date() ];
 					myApp.clearContent();
 					myApp.checkItemVotes( itemIndex + 1, true );
 				} else {
