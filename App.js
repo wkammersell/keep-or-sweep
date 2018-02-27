@@ -196,13 +196,13 @@ Ext.define('CustomApp', {
 				callback: function( records, operation ) {
 					if( operation.wasSuccessful() ) {
 						var voteData = [];
-						
+					
 						var cutOffDate = null;
 						if ( myApp.getSetting( 'revoteWindow' ) ) {
 							cutOffDate = new Date();
 							cutOffDate.setDate( cutOffDate.getDate() - myApp.getSetting( 'revoteWindow' ) );
 						}
-						
+					
 						workItem.myVote = null;
 						var myUserName = myApp.getContext().getUser()._refObjectName;
 						_.each( records, function( record ) {
@@ -212,21 +212,21 @@ Ext.define('CustomApp', {
 								record.data.Text.includes( myApp.KEEP_MESSAGE ) ? myApp.KEEP_MESSAGE : myApp.SWEEP_MESSAGE,
 								new Date( record.data.CreationDate )
 							];
-							
+						
 							if( myUserName === voteUserName && workItem.myVote === null ) {
 								workItem.myVote = votePoint;
 							}
-							
+						
 							// Only add the vote if there isn't a vote already for this user
 							if( ( record.data.Text.includes( myApp.POWERED_BY_MESSAGE ) ) &&
-							    ( cutOffDate ? ( record.data.CreationDate >= cutOffDate ) : true ) &&
-							    ( !_.contains( _.map( voteData, function( vote ) { return vote[ 0 ]; } ), voteUserName ) )
+								( cutOffDate ? ( record.data.CreationDate >= cutOffDate ) : true ) &&
+								( !_.contains( _.map( voteData, function( vote ) { return vote[ 0 ]; } ), voteUserName ) )
 							  ) {
 								voteData.push( votePoint );
 							}
 						}, myApp );
 						workItem.votes = voteData;
-						
+					
 						if( voteMode ) {
 							if( workItem.myVote && ( cutOffDate ? ( workItem.myVote[2] >= cutOffDate ) : true ) ) {
 								myApp.checkItemVotes( itemIndex + 1, true );
@@ -386,7 +386,14 @@ Ext.define('CustomApp', {
 			},
 			padding: '10 0 10 0'
 		});
-	
+		
+		// Show a Back button if there is a previous work item
+		if( itemIndex > 0 ) {
+			myApp.addButton( buttonBox, 'Back', myApp.DARK_BROWN, function(){
+				myApp.presentItemForProcess( itemIndex - 1 );
+			} );
+		}
+		
 		myApp.addButton( buttonBox, myApp.KEEP_MESSAGE, myApp.GREEN, function(){ myApp.checkItemVotes( itemIndex + 1, false ); } );
 		myApp.addButton( buttonBox, myApp.SWEEP_MESSAGE, myApp.RED, function(){ myApp.deleteItem( itemIndex ); } );
 		
@@ -488,7 +495,8 @@ Ext.define('CustomApp', {
 			callback: function( result, operation ){
 				if ( operation.wasSuccessful() ) {
 					myApp.clearContent();
-					myApp.checkItemVotes( itemIndex + 1, false );
+					myApp.itemBacklog.splice( itemIndex, 1 );
+					myApp.checkItemVotes( itemIndex, false );
 				} else {
 					myApp._myMask.hide();
 					myApp.clearContent();
